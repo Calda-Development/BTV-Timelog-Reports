@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Copy, ExternalLink, Clock, Users } from 'lucide-react';
+import { Copy, ExternalLink, Clock, Users, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { TimelogData, TimelogEntry } from '@/lib/types';
@@ -15,30 +15,68 @@ interface TimelogResultsProps {
 export function TimelogResults({ data, selectedDates }: TimelogResultsProps) {
   const { toast } = useToast();
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copiedDay, setCopiedDay] = useState<string | null>(null);
 
-  const copyToClipboard = async (text: string, index?: number) => {
+  const copyToClipboard = (text: string, index?: number, dayKey?: string) => {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.top = '0';
+    textArea.style.left = '0';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
     try {
-      await navigator.clipboard.writeText(text);
-      if (typeof index === 'number') {
-        setCopiedIndex(index);
-        setTimeout(() => setCopiedIndex(null), 2000);
+      const successful = document.execCommand('copy');
+      if (successful) {
+        if (typeof index === 'number') {
+          setCopiedIndex(index);
+          setTimeout(() => setCopiedIndex(null), 2000);
+        }
+        if (dayKey) {
+          setCopiedDay(dayKey);
+          setTimeout(() => setCopiedDay(null), 2000);
+        }
+        toast({
+          title: 'Copied to clipboard',
+          description: 'Text has been copied to your clipboard',
+        });
+      } else {
+        toast({
+          title: 'Failed to copy',
+          description: 'Could not copy text to clipboard',
+          variant: 'destructive',
+        });
       }
-      toast({
-        title: "Copied to clipboard",
-        description: "Text has been copied to your clipboard",
-      });
     } catch (err) {
       toast({
-        title: "Failed to copy",
-        description: "Could not copy text to clipboard",
-        variant: "destructive",
+        title: 'Failed to copy',
+        description: 'Could not copy text to clipboard',
+        variant: 'destructive',
       });
     }
+
+    document.body.removeChild(textArea);
   };
 
   const buildTextReport = (): string => {
     const dateRange = formatDateRange(selectedDates);
-    let message = `GitLab Time Log Report for ${dateRange}\n\n`;
+    let message = '';
+
+    // Add header with European date format
+    if (selectedDates.length === 1) {
+      const date = new Date(selectedDates[0] + 'T00:00:00');
+      const europeanDate = date.toLocaleDateString('en-GB'); // DD/MM/YYYY format
+      message += `What we accomplished on ${europeanDate}:\n\n`;
+    } else {
+      const startDate = new Date(selectedDates[0] + 'T00:00:00');
+      const endDate = new Date(selectedDates[selectedDates.length - 1] + 'T00:00:00');
+      const europeanStartDate = startDate.toLocaleDateString('en-GB');
+      const europeanEndDate = endDate.toLocaleDateString('en-GB');
+      message += `What we accomplished from ${europeanStartDate} to ${europeanEndDate}:\n\n`;
+    }
 
     const allEntries = [];
     let hasAnyEntries = false;
@@ -51,8 +89,7 @@ export function TimelogResults({ data, selectedDates }: TimelogResultsProps) {
     }
 
     if (!hasAnyEntries) {
-      message += `No time logs found for ${dateRange}\n\n`;
-      message += `Generated on ${new Date().toISOString()}`;
+      message += `No time logs found for ${dateRange}\n`;
       return message;
     }
 
@@ -65,28 +102,52 @@ export function TimelogResults({ data, selectedDates }: TimelogResultsProps) {
       userEntries[displayName].push(entry);
     }
 
-    message += `Summary by User:\n`;
-    for (const [gitlabName, totalSeconds] of Object.entries(data.userTotals)) {
-      const displayName = getDisplayName(gitlabName);
-      const totalTime = convertTime(totalSeconds);
-      message += `• ${displayName}: ${totalTime}\n`;
-    }
-    message += `\n`;
-
     for (const [displayName, entries] of Object.entries(userEntries)) {
-      message += `-----\n`;
-      message += `${displayName}\n`;
+      message += `*${displayName}*\n`;
 
       for (const entry of entries) {
-        message += `  ${entry.issueTitle}\n`;
+        const cleanedTitle = entry.issueTitle.replace(/\[|\]/g, '');
+        message += `  [${cleanedTitle}](${entry.issueWebUrl})\n`;
         message += `   ${entry.summary}\n`;
-        message += `   Time spent: ${entry.timeSpent}\n`;
-        message += `   ${entry.issueWebUrl}\n`;
+        message += `   *Time spent:* ${entry.timeSpent}\n`;
       }
       message += `\n`;
     }
 
-    message += `Generated on ${new Date().toISOString()}`;
+    return message;
+  };
+
+  const buildDayReport = (date: string): string => {
+    const dayEntries = data.timelogGroups[date] || [];
+    
+    let message = '';
+
+    if (dayEntries.length === 0) {
+      message += `No time logs found for this day\n`;
+      return message;
+    }
+
+    const userEntries: Record<string, TimelogEntry[]> = {};
+
+    for (const entry of dayEntries) {
+      const displayName = getDisplayName(entry.userName);
+      if (!userEntries[displayName]) {
+        userEntries[displayName] = [];
+      }
+      userEntries[displayName].push(entry);
+    }
+
+    for (const [displayName, entries] of Object.entries(userEntries)) {
+      message += `*${displayName}*\n`;
+      for (const entry of entries) {
+        const cleanedTitle = entry.issueTitle.replace(/\[|\]/g, '');
+        message += `  [${cleanedTitle}](${entry.issueWebUrl})\n`;
+        message += `   ${entry.summary}\n`;
+        message += `   *Time spent:* ${entry.timeSpent}\n`;
+      }
+      message += `\n`;
+    }
+
     return message;
   };
 
@@ -121,6 +182,12 @@ export function TimelogResults({ data, selectedDates }: TimelogResultsProps) {
     }
     userEntries[displayName].push(entry);
   }
+
+  // Check if this is a multi-day report (more than 1 day with data)
+  const daysWithData = selectedDates.filter(date => 
+    data.timelogGroups[date] && data.timelogGroups[date].length > 0
+  );
+  const isMultiDay = daysWithData.length > 1;
 
   return (
     <div className="space-y-6">
@@ -166,15 +233,78 @@ export function TimelogResults({ data, selectedDates }: TimelogResultsProps) {
         </div>
       </div>
 
+      {/* Daily Breakdown for multi-day reports */}
+      {isMultiDay && (
+        <div className="bg-blue-50 rounded-2xl border border-blue-100 p-6">
+          <div className="flex items-center mb-4">
+            <Calendar className="h-5 w-5 text-blue-600 mr-3" />
+            <h3 className="text-lg font-bold text-blue-900">Daily Breakdown</h3>
+            <span className="ml-2 text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full">
+              Perfect for tables!
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {daysWithData.map((date) => {
+              const dayOfWeek = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+              const dayEntries = data.timelogGroups[date] || [];
+              
+              // Calculate total hours for this day
+              const totalSeconds = dayEntries.reduce((acc, entry) => {
+                const timeInSeconds = entry.timeSpent.split(':').reduce((acc, time, index) => {
+                  return acc + parseInt(time) * Math.pow(60, 2 - index);
+                }, 0);
+                return acc + timeInSeconds;
+              }, 0);
+              const totalHours = convertTime(totalSeconds);
+              
+              return (
+                <div key={date} className="bg-white border border-blue-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h4 className="font-semibold text-gray-900 text-sm">{dayOfWeek}</h4>
+                      <p className="text-xs text-gray-600">{date}</p>
+                    </div>
+                    <Button
+                      onClick={() => copyToClipboard(buildDayReport(date), undefined, date)}
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs border-blue-200 hover:bg-blue-50"
+                    >
+                      {copiedDay === date ? (
+                        "Copied!"
+                      ) : (
+                        <>
+                          <Copy className="h-3 w-3 mr-1" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs text-gray-600">
+                      {dayEntries.length} entries
+                    </div>
+                    <div className="text-xs font-medium text-blue-700 bg-blue-100 px-2 py-1 rounded">
+                      Total: {totalHours}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {Object.entries(userEntries).map(([displayName, entries], userIndex) => (
         <div key={displayName} className="bg-white border border-gray-200 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-bold text-black">{displayName}</h3>
             <Button 
               onClick={() => copyToClipboard(
-                entries.map(entry => 
-                  `${entry.issueTitle}\n  ${entry.summary}\n  Time spent: ${entry.timeSpent}\n  ${entry.issueWebUrl}`
-                ).join('\n\n'),
+                entries.map(entry => {
+                  const cleanedTitle = entry.issueTitle.replace(/\[|\]/g, '');
+                  return `[${cleanedTitle}](${entry.issueWebUrl})\n  ${entry.summary}\n  *Time spent:* ${entry.timeSpent}`;
+                }).join('\n\n'),
                 userIndex
               )}
               variant="outline"

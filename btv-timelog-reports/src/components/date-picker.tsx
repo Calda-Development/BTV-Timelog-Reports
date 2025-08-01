@@ -24,12 +24,18 @@ export function DatePicker({ selectedDates, onDatesChange }: DatePickerProps) {
     switch (preset) {
       case 'yesterday':
         dates = [getPreviousDay()];
-        break;
-      case 'auto':
-        dates = getDatesToFetch();
+        // Update the date picker to show yesterday
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        setDate({ from: yesterday, to: yesterday });
         break;
       case 'last7':
         dates = [];
+        const startDate = new Date();
+        const endDate = new Date();
+        startDate.setDate(startDate.getDate() - 7);
+        endDate.setDate(endDate.getDate() - 1);
+        
         for (let i = 7; i >= 1; i--) {
           const date = new Date();
           date.setDate(date.getDate() - i);
@@ -38,6 +44,9 @@ export function DatePicker({ selectedDates, onDatesChange }: DatePickerProps) {
           const day = String(date.getDate()).padStart(2, '0');
           dates.push(`${year}-${month}-${day}`);
         }
+        
+        // Update the date picker to show the last 7 days range
+        setDate({ from: startDate, to: endDate });
         break;
       default:
         return;
@@ -87,18 +96,10 @@ export function DatePicker({ selectedDates, onDatesChange }: DatePickerProps) {
           <Button 
             variant="outline" 
             size="sm"
-            onClick={() => handlePresetClick('auto')}
-            className="justify-start h-10 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
-          >
-            Auto (Smart weekend detection)
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm"
             onClick={() => handlePresetClick('last7')}
             className="justify-start h-10 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
           >
-            Last 7 Days
+            <span>Last 7 Days <span className="text-gray-500">(Daily breakdown! - for airtable)</span></span>
           </Button>
         </div>
       </div>

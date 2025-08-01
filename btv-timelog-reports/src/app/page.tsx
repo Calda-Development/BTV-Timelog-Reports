@@ -1,27 +1,35 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, GitBranch, Calendar, Download } from 'lucide-react';
+import { Loader2, GitBranch, Calendar, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DatePicker } from '@/components/date-picker';
 import { TimelogResults } from '@/components/timelog-results';
+import { UserFilter } from '@/components/user-filter';
 import { TimelogData } from '@/lib/types';
-import { getDatesToFetch } from '@/lib/utils';
+import { getDatesToFetch, NAME_MAPPING } from '@/lib/utils';
 
 export default function Home() {
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [timelogData, setTimelogData] = useState<TimelogData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
 
   useEffect(() => {
     setSelectedDates(getDatesToFetch());
+    setSelectedUsers(Object.keys(NAME_MAPPING));
   }, []);
 
   const fetchTimelogs = async () => {
     if (selectedDates.length === 0) {
       setError('Please select at least one date');
+      return;
+    }
+
+    if (selectedUsers.length === 0) {
+      setError('Please select at least one user');
       return;
     }
 
@@ -37,6 +45,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           targetDates: selectedDates,
+          selectedUsers: selectedUsers,
         }),
       });
 
@@ -88,16 +97,23 @@ export default function Home() {
                 </div>
 
                 <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                  <UserFilter
+                    selectedUsers={selectedUsers}
+                    onUsersChange={setSelectedUsers}
+                  />
+                </div>
+
+                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
                   <div className="flex items-center mb-4">
-                    <Download className="h-5 w-5 text-black mr-3" />
+                    <Zap className="h-5 w-5 text-black mr-3" />
                     <h2 className="text-lg font-semibold text-black">Generate Report</h2>
                   </div>
                   <p className="text-gray-600 text-sm mb-4">
-                    Fetch timelog data for the selected dates from GitLab
+                    Fetch timelog data for the selected dates and users from GitLab
                   </p>
                   <Button 
                     onClick={fetchTimelogs}
-                    disabled={loading || selectedDates.length === 0}
+                    disabled={loading || selectedDates.length === 0 || selectedUsers.length === 0}
                     className="w-full h-12 bg-black hover:bg-gray-800 text-white rounded-xl font-medium transition-colors"
                   >
                     {loading ? (
@@ -106,12 +122,15 @@ export default function Home() {
                         Fetching Data...
                       </>
                     ) : (
-                      'Generate Report'
+                      <>
+                        <Zap className="mr-2 h-5 w-5" />
+                        Generate Report
+                      </>
                     )}
                   </Button>
-                  {selectedDates.length === 0 && (
+                  {(selectedDates.length === 0 || selectedUsers.length === 0) && (
                     <p className="text-gray-500 text-xs mt-3 text-center">
-                      Select at least one date to generate a report
+                      {selectedDates.length === 0 ? 'Select at least one date' : 'Select at least one user'} to generate a report
                     </p>
                   )}
                 </div>
@@ -119,6 +138,20 @@ export default function Home() {
             </div>
 
             <div className="xl:col-span-3">
+              {loading && (
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-8 mb-6">
+                  <div className="flex items-center justify-center">
+                    <div className="text-center">
+                      <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+                      <h3 className="font-semibold text-blue-800 mb-2">Fetching Data</h3>
+                      <p className="text-blue-700 text-sm">
+                        Retrieving timelog data from GitLab for {selectedDates.length} date{selectedDates.length !== 1 ? 's' : ''} and {selectedUsers.length} user{selectedUsers.length !== 1 ? 's' : ''}...
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-6">
                   <h3 className="font-semibold text-red-800 mb-2">Error</h3>
@@ -126,7 +159,7 @@ export default function Home() {
                 </div>
               )}
 
-              {timelogData && (
+              {timelogData && !loading && (
                 <TimelogResults
                   data={timelogData}
                   selectedDates={selectedDates}
@@ -143,7 +176,7 @@ export default function Home() {
                       Ready to Generate Report
                     </h3>
                     <p className="text-gray-500 text-sm">
-                      Select your dates and click &quot;Generate Report&quot; to fetch timelog data
+                      Select your dates, users, and click &quot;Generate Report&quot; to fetch timelog data
                     </p>
                   </div>
                 </div>

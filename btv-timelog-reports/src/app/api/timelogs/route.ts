@@ -58,7 +58,7 @@ function convertTime(seconds: number): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { targetDates } = await request.json();
+    const { targetDates, selectedUsers } = await request.json();
 
     const gitlabUrl = process.env.GITLAB_API_URL;
     const accessToken = process.env.GITLAB_ACCESS_TOKEN;
@@ -73,6 +73,13 @@ export async function POST(request: NextRequest) {
     if (!targetDates || !Array.isArray(targetDates)) {
       return NextResponse.json(
         { error: 'Missing or invalid targetDates parameter' },
+        { status: 400 }
+      );
+    }
+
+    if (!selectedUsers || !Array.isArray(selectedUsers)) {
+      return NextResponse.json(
+        { error: 'Missing or invalid selectedUsers parameter' },
         { status: 400 }
       );
     }
@@ -146,7 +153,7 @@ export async function POST(request: NextRequest) {
       for (const timelog of timelogs) {
         const workDate = getWorkDate(timelog.spentAt);
 
-        if (targetDates.includes(workDate)) {
+        if (targetDates.includes(workDate) && selectedUsers.includes(timelog.user.name)) {
           const {
             timeSpent,
             summary,
