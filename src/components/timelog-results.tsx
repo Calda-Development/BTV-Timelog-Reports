@@ -45,7 +45,7 @@ export function TimelogResults({ data, selectedDates, selectedUsers }: TimelogRe
 
   const buildTextReport = () => {
     const dateRange = formatDateRange(selectedDates);
-    let message = '*pDAILY ☀️*\n';
+    let message = '*DAILY ☀️*\n';
 
     if (selectedDates.length === 1) {
       const date = new Date(selectedDates[0] + 'T00:00:00');
