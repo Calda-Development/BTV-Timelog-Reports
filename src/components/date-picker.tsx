@@ -24,7 +24,6 @@ export function DatePicker({ selectedDates, onDatesChange }: DatePickerProps) {
     switch (preset) {
       case 'yesterday':
         dates = [getPreviousDay()];
-        // Update the date picker to show yesterday
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         setDate({ from: yesterday, to: yesterday });
@@ -45,7 +44,6 @@ export function DatePicker({ selectedDates, onDatesChange }: DatePickerProps) {
           dates.push(`${year}-${month}-${day}`);
         }
         
-        // Update the date picker to show the last 7 days range
         setDate({ from: startDate, to: endDate });
         break;
       default:
@@ -83,13 +81,13 @@ export function DatePicker({ selectedDates, onDatesChange }: DatePickerProps) {
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-gray-600 text-sm mb-3">Quick presets</p>
+        <p className="text-muted-foreground text-sm mb-3">Quick presets</p>
         <div className="grid grid-cols-1 gap-2">
           <Button 
             variant="outline" 
             size="sm"
             onClick={() => handlePresetClick('yesterday')}
-            className="justify-start h-10 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+            className="justify-start h-10"
           >
             Yesterday
           </Button>
@@ -97,22 +95,22 @@ export function DatePicker({ selectedDates, onDatesChange }: DatePickerProps) {
             variant="outline" 
             size="sm"
             onClick={() => handlePresetClick('last7')}
-            className="justify-start h-10 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
+            className="justify-start h-10"
           >
-            <span>Last 7 Days <span className="text-gray-500">(Daily breakdown! - for airtable)</span></span>
+            <span>Last 7 Days <span className="text-muted-foreground">(Daily breakdown! - for airtable)</span></span>
           </Button>
         </div>
       </div>
       
       <div>
-        <p className="text-gray-600 text-sm mb-3">Custom date range</p>
+        <p className="text-muted-foreground text-sm mb-3">Custom date range</p>
         <Popover>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
               className={cn(
-                'w-full justify-start text-left font-normal h-10 border-gray-200 hover:bg-gray-50 hover:border-gray-300',
-                !date && 'text-gray-500'
+                'w-full justify-start text-left font-normal h-10',
+                !date && 'text-muted-foreground'
               )}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
@@ -143,9 +141,9 @@ export function DatePicker({ selectedDates, onDatesChange }: DatePickerProps) {
       </div>
       
       {selectedDates.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-lg p-3">
-          <p className="text-xs font-medium text-gray-700 mb-2">Selected dates:</p>
-          <p className="text-xs text-gray-600 leading-relaxed">
+        <div className="bg-muted/30 border rounded-lg p-3">
+          <p className="text-xs font-medium text-foreground mb-2">Selected dates:</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
             {selectedDates.join(', ')}
           </p>
         </div>

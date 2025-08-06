@@ -11,6 +11,7 @@ export const NAME_MAPPING = {
   JAN: "Jan",
   Tim_Blazic: "Tim",
   niko: "Niko",
+  edis: "Edis",
 };
 
 export function getDisplayName(gitlabName: string): string {

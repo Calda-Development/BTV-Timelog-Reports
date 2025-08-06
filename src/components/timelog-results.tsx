@@ -1,74 +1,55 @@
 'use client';
 
 import { useState } from 'react';
-import { Copy, ExternalLink, Clock, Users, Calendar } from 'lucide-react';
+import { Copy, ExternalLink, Clock, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { TimelogData, TimelogEntry } from '@/lib/types';
-import { getDisplayName, convertTime, formatDateRange } from '@/lib/utils';
+import { getDisplayName, formatDateRange, convertTime, NAME_MAPPING } from '@/lib/utils';
 
 interface TimelogResultsProps {
   data: TimelogData;
   selectedDates: string[];
+  selectedUsers: string[];
 }
 
-export function TimelogResults({ data, selectedDates }: TimelogResultsProps) {
+export function TimelogResults({ data, selectedDates, selectedUsers }: TimelogResultsProps) {
   const { toast } = useToast();
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [copiedDay, setCopiedDay] = useState<string | null>(null);
 
-  const copyToClipboard = (text: string, index?: number, dayKey?: string) => {
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.top = '0';
-    textArea.style.left = '0';
-    textArea.style.opacity = '0';
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-
-    try {
-      const successful = document.execCommand('copy');
-      if (successful) {
-        if (typeof index === 'number') {
-          setCopiedIndex(index);
-          setTimeout(() => setCopiedIndex(null), 2000);
-        }
-        if (dayKey) {
-          setCopiedDay(dayKey);
-          setTimeout(() => setCopiedDay(null), 2000);
-        }
-        toast({
-          title: 'Copied to clipboard',
-          description: 'Text has been copied to your clipboard',
-        });
-      } else {
-        toast({
-          title: 'Failed to copy',
-          description: 'Could not copy text to clipboard',
-          variant: 'destructive',
-        });
+  const copyToClipboard = (text: string, index?: number, day?: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      if (day) {
+        setCopiedDay(day);
+        setTimeout(() => setCopiedDay(null), 2000);
+      } else if (index !== undefined) {
+        setCopiedIndex(index);
+        setTimeout(() => setCopiedIndex(null), 2000);
       }
-    } catch (err) {
+      
       toast({
-        title: 'Failed to copy',
-        description: 'Could not copy text to clipboard',
-        variant: 'destructive',
+        title: "Copied to clipboard",
+        description: day ? `${day} report copied` : "Report copied successfully",
       });
-    }
-
-    document.body.removeChild(textArea);
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+      toast({
+        title: "Copy failed",
+        description: "Failed to copy to clipboard",
+        variant: "destructive",
+      });
+    });
   };
 
-  const buildTextReport = (): string => {
+  const buildTextReport = () => {
     const dateRange = formatDateRange(selectedDates);
-    let message = '';
+    let message = '*pDAILY ☀️*\n';
 
-    // Add header with European date format
     if (selectedDates.length === 1) {
       const date = new Date(selectedDates[0] + 'T00:00:00');
-      const europeanDate = date.toLocaleDateString('en-GB'); // DD/MM/YYYY format
+      const europeanDate = date.toLocaleDateString('en-GB');
       message += `What we accomplished on ${europeanDate}:\n\n`;
     } else {
       const startDate = new Date(selectedDates[0] + 'T00:00:00');
@@ -104,7 +85,7 @@ export function TimelogResults({ data, selectedDates }: TimelogResultsProps) {
 
     for (const [displayName, entries] of Object.entries(userEntries)) {
       message += `*${displayName}*\n`;
-
+      
       for (const entry of entries) {
         const cleanedTitle = entry.issueTitle.replace(/\[|\]/g, '');
         message += `  [${cleanedTitle}](${entry.issueWebUrl})\n`;
@@ -117,7 +98,7 @@ export function TimelogResults({ data, selectedDates }: TimelogResultsProps) {
     return message;
   };
 
-  const buildDayReport = (date: string): string => {
+  const buildDayReport = (date: string) => {
     const dayEntries = data.timelogGroups[date] || [];
     
     let message = '';
@@ -128,7 +109,7 @@ export function TimelogResults({ data, selectedDates }: TimelogResultsProps) {
     }
 
     const userEntries: Record<string, TimelogEntry[]> = {};
-
+    
     for (const entry of dayEntries) {
       const displayName = getDisplayName(entry.userName);
       if (!userEntries[displayName]) {
@@ -151,39 +132,19 @@ export function TimelogResults({ data, selectedDates }: TimelogResultsProps) {
     return message;
   };
 
-  const hasData = selectedDates.some(date => 
-    data.timelogGroups[date] && data.timelogGroups[date].length > 0
-  );
-
-  if (!hasData) {
-    return (
-      <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-6">
-        <h3 className="font-semibold text-yellow-800 mb-2">No Data Found</h3>
-        <p className="text-yellow-700 text-sm">
-          No time logs found for the selected dates: {selectedDates.join(', ')}
-        </p>
-      </div>
-    );
-  }
-
   const userEntries: Record<string, TimelogEntry[]> = {};
-  const allEntries = [];
   
-  for (const date of selectedDates) {
-    if (data.timelogGroups[date]) {
-      allEntries.push(...data.timelogGroups[date]);
-    }
-  }
+  selectedDates.forEach(date => {
+    const entries = data.timelogGroups[date] || [];
+    entries.forEach(entry => {
+      const displayName = getDisplayName(entry.userName);
+      if (!userEntries[displayName]) {
+        userEntries[displayName] = [];
+      }
+      userEntries[displayName].push(entry);
+    });
+  });
 
-  for (const entry of allEntries) {
-    const displayName = getDisplayName(entry.userName);
-    if (!userEntries[displayName]) {
-      userEntries[displayName] = [];
-    }
-    userEntries[displayName].push(entry);
-  }
-
-  // Check if this is a multi-day report (more than 1 day with data)
   const daysWithData = selectedDates.filter(date => 
     data.timelogGroups[date] && data.timelogGroups[date].length > 0
   );
@@ -191,87 +152,156 @@ export function TimelogResults({ data, selectedDates }: TimelogResultsProps) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-gray-50 rounded-2xl border border-gray-100 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <div className="flex items-center mb-2">
-              <Clock className="h-5 w-5 text-black mr-3" />
-              <h2 className="text-xl font-bold text-black">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center">
+                <Clock className="h-5 w-5 mr-3" />
                 Time Log Report
-              </h2>
+              </CardTitle>
+              <p className="text-muted-foreground text-sm mt-1">
+                {formatDateRange(selectedDates)}
+              </p>
             </div>
-            <p className="text-gray-600 text-sm">
-              {formatDateRange(selectedDates)}
-            </p>
+            <Button 
+              onClick={() => copyToClipboard(buildTextReport())}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copy Daily
+            </Button>
           </div>
-          <Button 
-            onClick={() => copyToClipboard(buildTextReport())}
-            className="bg-black hover:bg-gray-800 text-white rounded-xl px-4 py-2 text-sm font-medium"
-          >
-            <Copy className="h-4 w-4 mr-2" />
-            Copy All
-          </Button>
-        </div>
-
-        <div className="border-t border-gray-200 pt-6">
-          <div className="flex items-center mb-4">
-            <Users className="h-4 w-4 text-black mr-2" />
-            <h3 className="font-semibold text-black">Summary by User</h3>
+        </CardHeader>
+        <CardContent className="border-t">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-foreground">{Object.keys(userEntries).length}</div>
+              <div className="text-sm text-muted-foreground">Team Members</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-foreground">
+                {Object.values(userEntries).reduce((acc, entries) => acc + entries.length, 0)}
+              </div>
+              <div className="text-sm text-muted-foreground">Total Entries</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-foreground">{daysWithData.length}</div>
+              <div className="text-sm text-muted-foreground">Days</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-foreground">
+                {convertTime(
+                  Object.values(userEntries)
+                    .flat()
+                    .reduce((acc, entry) => {
+                      const timeInSeconds = entry.timeSpent.split(':').reduce((acc: number, time: string, index: number) => {
+                        return acc + parseInt(time) * Math.pow(60, 2 - index);
+                      }, 0);
+                      return acc + timeInSeconds;
+                    }, 0)
+                )}
+              </div>
+              <div className="text-sm text-muted-foreground">Total Time</div>
+            </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {Object.entries(data.userTotals).map(([gitlabName, totalSeconds]) => {
-              const displayName = getDisplayName(gitlabName);
-              const totalTime = convertTime(totalSeconds);
-              return (
-                <div key={gitlabName} className="bg-white border border-gray-200 rounded-lg p-3 flex justify-between items-center">
-                  <span className="font-medium text-gray-900 text-sm">{displayName}</span>
-                  <span className="font-mono text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">{totalTime}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Daily Breakdown for multi-day reports */}
-      {isMultiDay && (
-        <div className="bg-blue-50 rounded-2xl border border-blue-100 p-6">
-          <div className="flex items-center mb-4">
-            <Calendar className="h-5 w-5 text-blue-600 mr-3" />
-            <h3 className="text-lg font-bold text-blue-900">Daily Breakdown</h3>
-            <span className="ml-2 text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full">
-              Perfect for tables!
-            </span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {daysWithData.map((date) => {
-              const dayOfWeek = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
-              const dayEntries = data.timelogGroups[date] || [];
-              
-              // Calculate total hours for this day
-              const totalSeconds = dayEntries.reduce((acc, entry) => {
-                const timeInSeconds = entry.timeSpent.split(':').reduce((acc, time, index) => {
-                  return acc + parseInt(time) * Math.pow(60, 2 - index);
+          
+          <div className="mt-6 pt-6 border-t">
+            <h3 className="font-semibold text-foreground mb-4">Individual Hours</h3>
+            <div className="space-y-2">
+              {Object.entries(userEntries).map(([displayName, entries]) => {
+                const totalSeconds = entries.reduce((acc, entry) => {
+                  const timeInSeconds = entry.timeSpent.split(':').reduce((acc: number, time: string, index: number) => {
+                    return acc + parseInt(time) * Math.pow(60, 2 - index);
+                  }, 0);
+                  return acc + timeInSeconds;
                 }, 0);
-                return acc + timeInSeconds;
-              }, 0);
-              const totalHours = convertTime(totalSeconds);
+                
+                return (
+                  <div key={displayName} className="flex justify-between items-center py-2 px-3 bg-muted/30 rounded-lg">
+                    <span className="font-medium text-foreground">{displayName}</span>
+                    <span className="font-mono text-sm text-muted-foreground">{convertTime(totalSeconds)}</span>
+                  </div>
+                );
+              })}
               
-              return (
-                <div key={date} className="bg-white border border-blue-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h4 className="font-semibold text-gray-900 text-sm">{dayOfWeek}</h4>
-                      <p className="text-xs text-gray-600">{date}</p>
+              {(() => {
+                const allTeamMembers = ["Tim", "Črt", "Niko", "Jan", "Daniel", "Edis"];
+                const activeMembers = Object.keys(userEntries);
+                const missingMembers = allTeamMembers.filter(displayName => !activeMembers.includes(displayName));
+                
+                // Only show missing members when all users are selected (not filtered)
+                const allUsersSelected = selectedUsers.length === Object.keys(NAME_MAPPING).length;
+                
+                console.log('All team members:', allTeamMembers);
+                console.log('Active members:', activeMembers);
+                console.log('Missing members:', missingMembers);
+                console.log('All users selected:', allUsersSelected);
+                
+                return (allUsersSelected && missingMembers.length > 0) ? (
+                  <div className="mt-4">
+                    <h4 className="text-sm font-medium text-muted-foreground mb-2">Missing Time Logs</h4>
+                    {missingMembers.map(member => (
+                      <div key={member} className="flex justify-between items-center py-2 px-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                        <span className="font-medium text-destructive">{member}</span>
+                        <span className="text-sm text-destructive">No entries</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {isMultiDay && (
+        <Card className="border-[#9d6221]/30 bg-[#9d6221]/10 dark:border-[#9d6221]/50 dark:bg-[#9d6221]/5">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center text-[#9d6221] dark:text-[#d4a574] text-lg">
+              <Calendar className="h-4 w-4 mr-2" />
+              Daily Breakdown
+              <span className="text-muted-foreground font-normal ml-2">(for AirTable)</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-2">
+              {daysWithData.map((date) => {
+                const dayOfWeek = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+                const dayEntries = data.timelogGroups[date] || [];
+                const [year, month, day] = date.split('-');
+                const europeanDate = `${day}/${month}`;
+                
+                const totalSeconds = dayEntries.reduce((acc, entry) => {
+                  const timeInSeconds = entry.timeSpent.split(':').reduce((acc, time, index) => {
+                    return acc + parseInt(time) * Math.pow(60, 2 - index);
+                  }, 0);
+                  return acc + timeInSeconds;
+                }, 0);
+                const totalHours = convertTime(totalSeconds);
+                
+                return (
+                  <div key={date} className="flex items-center justify-between p-3 bg-background border border-[#9d6221]/20 dark:border-[#9d6221]/40 rounded-lg hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm">
+                        <span className="font-medium text-foreground">{dayOfWeek}</span>
+                        <span className="text-muted-foreground ml-1">{europeanDate}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{dayEntries.length} entries</span>
+                      <span className="text-xs font-mono font-medium text-[#9d6221] dark:text-[#d4a574] bg-[#9d6221]/15 dark:bg-[#9d6221]/20 px-2 py-1 rounded">
+                        {totalHours}
+                      </span>
                     </div>
                     <Button
                       onClick={() => copyToClipboard(buildDayReport(date), undefined, date)}
                       variant="outline"
                       size="sm"
-                      className="h-7 px-2 text-xs border-blue-200 hover:bg-blue-50"
+                      className="h-8 px-3 text-xs font-medium border-[#9d6221] text-[#9d6221] hover:bg-[#9d6221] hover:text-white dark:border-[#d4a574] dark:text-[#d4a574] dark:hover:bg-[#d4a574] dark:hover:text-black transition-colors"
                     >
                       {copiedDay === date ? (
-                        "Copied!"
+                        <>
+                          <span className="mr-1">✓</span>
+                          Copied
+                        </>
                       ) : (
                         <>
                           <Copy className="h-3 w-3 mr-1" />
@@ -280,75 +310,69 @@ export function TimelogResults({ data, selectedDates }: TimelogResultsProps) {
                       )}
                     </Button>
                   </div>
-                  <div className="space-y-1">
-                    <div className="text-xs text-gray-600">
-                      {dayEntries.length} entries
-                    </div>
-                    <div className="text-xs font-medium text-blue-700 bg-blue-100 px-2 py-1 rounded">
-                      Total: {totalHours}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {Object.entries(userEntries).map(([displayName, entries], userIndex) => (
-        <div key={displayName} className="bg-white border border-gray-200 rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-bold text-black">{displayName}</h3>
-            <Button 
-              onClick={() => copyToClipboard(
-                entries.map(entry => {
-                  const cleanedTitle = entry.issueTitle.replace(/\[|\]/g, '');
-                  return `[${cleanedTitle}](${entry.issueWebUrl})\n  ${entry.summary}\n  *Time spent:* ${entry.timeSpent}`;
-                }).join('\n\n'),
-                userIndex
-              )}
-              variant="outline"
-              className="border-gray-200 hover:bg-gray-50 hover:border-gray-300 rounded-xl text-sm"
-            >
-              {copiedIndex === userIndex ? (
-                "Copied!"
-              ) : (
-                <>
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy
-                </>
-              )}
-            </Button>
-          </div>
-          
-          <div className="space-y-4">
-            {entries.map((entry, entryIndex) => (
-              <div key={entryIndex} className="border border-gray-100 rounded-xl p-4 hover:border-gray-200 transition-colors">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <h4 className="font-medium text-gray-900 text-sm leading-relaxed flex-1">
-                    {entry.issueTitle}
-                  </h4>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="font-mono text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                      {entry.timeSpent}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 hover:bg-gray-100"
-                      onClick={() => window.open(entry.issueWebUrl, '_blank')}
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
+        <Card key={displayName}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>{displayName}</CardTitle>
+              <Button 
+                onClick={() => copyToClipboard(
+                  entries.map(entry => {
+                    const cleanedTitle = entry.issueTitle.replace(/\[|\]/g, '');
+                    return `[${cleanedTitle}](${entry.issueWebUrl})\n  ${entry.summary}\n  *Time spent:* ${entry.timeSpent}`;
+                  }).join('\n\n'),
+                  userIndex
+                )}
+                variant="outline"
+              >
+                {copiedIndex === userIndex ? (
+                  "Copied!"
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {entries.map((entry, entryIndex) => (
+                <div key={entryIndex} className="border rounded-xl p-4 hover:bg-muted/50 transition-colors">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <h4 className="font-medium text-foreground text-sm leading-relaxed flex-1">
+                      {entry.issueTitle}
+                    </h4>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="font-mono text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                        {entry.timeSpent}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => window.open(entry.issueWebUrl, '_blank')}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    {entry.summary}
+                  </p>
                 </div>
-                <p className="text-gray-600 text-sm leading-relaxed">
-                  {entry.summary}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       ))}
     </div>
   );
