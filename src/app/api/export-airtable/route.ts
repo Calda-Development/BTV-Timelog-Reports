@@ -1,14 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { TimelogData, TimelogEntry } from '@/lib/types';
+import { NextRequest, NextResponse } from "next/server";
+import { TimelogData } from "@/lib/types";
 
 interface AirtableRecord {
   fields: {
-    'Team Member': string;
-    'Project': string;
-    'Project Tasks': string;
-    'Start Time': string;
-    'End Time': string;
-    'Notes': string;
+    "Team Member": string;
+    Project: string;
+    "Project Tasks": string;
+    "Start Time": string;
+    "End Time": string;
+    Notes: string;
   };
 }
 
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     if (!timelogData || !selectedUser || !confirmedBy) {
       return NextResponse.json(
-        { error: 'Missing required data' },
+        { error: "Missing required data" },
         { status: 400 }
       );
     }
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     if (!personalAccessToken || !baseId || !tableName) {
       return NextResponse.json(
-        { error: 'Airtable configuration missing' },
+        { error: "Airtable configuration missing" },
         { status: 500 }
       );
     }
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     if (records.length === 0) {
       return NextResponse.json(
-        { error: 'No records found for the selected user' },
+        { error: "No records found for the selected user" },
         { status: 400 }
       );
     }
@@ -46,10 +46,10 @@ export async function POST(request: NextRequest) {
     const airtableResponse = await fetch(
       `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${personalAccessToken}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${personalAccessToken}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ records }),
       }
@@ -57,9 +57,9 @@ export async function POST(request: NextRequest) {
 
     if (!airtableResponse.ok) {
       const errorData = await airtableResponse.json();
-      console.error('Airtable API error:', errorData);
+      console.error("Airtable API error:", errorData);
       return NextResponse.json(
-        { error: 'Failed to export to Airtable', details: errorData },
+        { error: "Failed to export to Airtable", details: errorData },
         { status: airtableResponse.status }
       );
     }
@@ -72,31 +72,33 @@ export async function POST(request: NextRequest) {
       recordsCreated: result.records?.length || 0,
       confirmedBy,
     });
-
   } catch (error) {
-    console.error('Export error:', error);
+    console.error("Export error:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
 }
 
-function transformTimelogToAirtable(timelogData: TimelogData, selectedUser: string): AirtableRecord[] {
+function transformTimelogToAirtable(
+  timelogData: TimelogData,
+  selectedUser: string
+): AirtableRecord[] {
   const records: AirtableRecord[] = [];
-  
+
   Object.entries(timelogData.timelogGroups).forEach(([date, entries]) => {
     entries
-      .filter(entry => entry.userName === selectedUser)
-      .forEach(entry => {
+      .filter((entry) => entry.userName === selectedUser)
+      .forEach((entry) => {
         records.push({
           fields: {
-            'Team Member': entry.userName,
-            'Project': extractProjectFromIssue(entry.issueTitle),
-            'Project Tasks': entry.issueTitle,
-            'Start Time': formatDateTime(date, '09:00'),
-            'End Time': formatDateTime(date, '17:00'),
-            'Notes': `${entry.summary}\n\nTime Spent: ${entry.timeSpent}\nIssue: ${entry.issueWebUrl}`,
+            "Team Member": entry.userName,
+            Project: extractProjectFromIssue(entry.issueTitle),
+            "Project Tasks": entry.issueTitle,
+            "Start Time": formatDateTime(date, "09:00"),
+            "End Time": formatDateTime(date, "17:00"),
+            Notes: `${entry.summary}\n\nTime Spent: ${entry.timeSpent}\nIssue: ${entry.issueWebUrl}`,
           },
         });
       });
@@ -107,9 +109,9 @@ function transformTimelogToAirtable(timelogData: TimelogData, selectedUser: stri
 
 function extractProjectFromIssue(issueTitle: string): string {
   const projectMatch = issueTitle.match(/^([A-Z]+[-_][A-Z0-9]+)/);
-  return projectMatch ? projectMatch[1] : 'General';
+  return projectMatch ? projectMatch[1] : "General";
 }
 
 function formatDateTime(date: string, time: string): string {
   return `${date}T${time}:00.000Z`;
-} 
+}
