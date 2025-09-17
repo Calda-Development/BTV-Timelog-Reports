@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TimelogEntry } from "@/lib/types";
+import { convertTime, getDisplayName, NAME_MAPPING } from "@/lib/utils";
 
 interface GitLabTimelogEntry {
   id: string;
@@ -47,15 +48,6 @@ function getWorkDate(spentAt: string): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function convertTime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = seconds % 60;
-  return `${hours.toString().padStart(2, "0")}:${minutes
-    .toString()
-    .padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -154,6 +146,36 @@ async function fetchJiraData(
 
   const auth = Buffer.from(`${email}:${accessToken}`).toString("base64");
 
+  // Map Jira user info to our internal user keys
+  function findUserKeyByJiraInfo(
+    displayName: string,
+    email: string
+  ): string | null {
+    // Create a mapping from display names and emails to user keys
+    const jiraUserMapping: Record<string, string> = {
+      // Display names
+      Daniel: "daniel",
+      "Daniel Vinojcic": "daniel",
+      Jan: "JAN",
+      "Jan Kokalj": "JAN",
+      Tim: "Tim_Blazic",
+      "Tim Blažič": "Tim_Blazic",
+      "Tim Blazic": "Tim_Blazic",
+      Niko: "niko",
+      "Niko Bec": "niko",
+      Edis: "edis",
+      "Edis Fejzoski": "edis",
+      // Emails
+      "daniel@thecalda.com": "daniel",
+      "jan@thecalda.com": "JAN",
+      "tim.blazic@thecalda.com": "Tim_Blazic",
+      "niko@thecalda.com": "niko",
+      "edis@thecalda.com": "edis",
+    };
+
+    return jiraUserMapping[displayName] || jiraUserMapping[email] || null;
+  }
+
   function extractCommentText(comment: any): string {
     if (!comment) return "No description";
     if (typeof comment === "string") return comment;
@@ -231,10 +253,21 @@ async function fetchJiraData(
 
         for (const worklog of worklogs) {
           const worklogDate = getWorkDate(worklog.started);
-          const authorName = worklog.author?.displayName || "";
+          const authorDisplayName = worklog.author?.displayName || "";
+          const authorEmail = worklog.author?.emailAddress || "";
+
+          // Map Jira display name or email to our internal user keys
+          const mappedUserKey = findUserKeyByJiraInfo(
+            authorDisplayName,
+            authorEmail
+          );
 
           // Filter by date and selected users
-          if (worklogDate === date && selectedUsers.includes(authorName)) {
+          if (
+            worklogDate === date &&
+            mappedUserKey &&
+            selectedUsers.includes(mappedUserKey)
+          ) {
             const timeSpentSeconds = worklog.timeSpentSeconds || 0;
             const humanTimeSpent = convertTime(timeSpentSeconds);
             const issueWebUrl = `${jiraUrl}/browse/${issueKey}`;
@@ -242,16 +275,19 @@ async function fetchJiraData(
               .replace(/\"/g, '\\"')
               .replace(/\n/g, " ");
 
+            // Use the display name from NAME_MAPPING for consistency
+            const displayName = getDisplayName(mappedUserKey);
+
             timelogGroups[date].push({
               issueTitle: `${issueKey}: ${issueSummary}`,
               summary: commentText,
               timeSpent: humanTimeSpent,
-              userName: authorName,
+              userName: displayName,
               issueWebUrl,
             });
 
-            if (!userTotals[authorName]) userTotals[authorName] = 0;
-            userTotals[authorName] += timeSpentSeconds;
+            if (!userTotals[displayName]) userTotals[displayName] = 0;
+            userTotals[displayName] += timeSpentSeconds;
           }
         }
       }
