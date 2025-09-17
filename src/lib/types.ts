@@ -1,3 +1,5 @@
+export type DataSource = "gitlab" | "jira";
+
 export interface TimelogEntry {
   issueTitle: string;
   summary: string;
@@ -22,4 +24,16 @@ export interface TimelogData {
 export interface GitLabConfig {
   gitlabUrl: string;
   accessToken: string;
-} 
+}
+
+export interface JiraConfig {
+  jiraUrl: string;
+  accessToken: string;
+  email: string;
+}
+
+export interface AppConfig {
+  dataSource: DataSource;
+  gitlab: GitLabConfig;
+  jira: JiraConfig;
+}
