@@ -104,7 +104,7 @@ export function DatePicker({ selectedDates, onDatesChange }: DatePickerProps) {
             <span>
               Last 7 Days{" "}
               <span className="text-muted-foreground">
-                (Daily breakdown - for airtable)
+                (Daily breakdown! - for airtable)
               </span>
             </span>
           </Button>
